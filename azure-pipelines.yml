@@ -9,8 +9,7 @@ resources:
 - repo: self
 
 variables:
-  tag: '$(test)'
-
+  tag: test
 stages:
 - stage: Build
   displayName: Build image
