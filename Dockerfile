@@ -1,13 +1,11 @@
-FROM node:16
+FROM node:20
 
-
-
+EXPOSE 5000
 
 # Create app directory
 WORKDIR /app
 
 RUN git clone https://github.com/Artsdatabanken/identification_key.git legacy_viewer
-
 
 
 # Install app dependencies

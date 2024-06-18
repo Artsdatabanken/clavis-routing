@@ -9,7 +9,7 @@ resources:
 - repo: self
 
 variables:
-  tag: test
+  tag: latest
 stages:
 - stage: Build
   displayName: Build image
