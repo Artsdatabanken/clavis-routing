@@ -3,7 +3,6 @@
 # https://docs.microsoft.com/azure/devops/pipelines/languages/docker
 
 trigger:
-  pr: none
   branches:
       include:
         - dev
@@ -11,6 +10,7 @@ trigger:
         - main
         - staging
         - master
+pr: none
 
 resources:
 - repo: self
