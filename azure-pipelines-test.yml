@@ -3,7 +3,13 @@
 # https://docs.microsoft.com/azure/devops/pipelines/languages/docker
 
 trigger:
-- main
+  branches:
+      include:
+        - dev
+      exclude:
+        - main
+        - staging
+        - master
 
 resources:
 - repo: self
