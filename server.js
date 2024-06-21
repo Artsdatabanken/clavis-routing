@@ -51,7 +51,7 @@ app.use(
   express.static(path.join(__dirname, "clavis_viewer"))
 );
 
-app.get("/*", (req, res) => {
+app.get("/", (req, res) => {
   // if there is no uuid argument, redirect to the legacy viewer
   if (!req.url.includes("uuid")) {
     return res.redirect(`/legacy_viewer${req.url}`);
