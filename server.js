@@ -47,8 +47,8 @@ app.use(
 );
 
 app.use(
-  "/clavis_viewer",
-  express.static(path.join(__dirname, "clavis_viewer"))
+  "/viewer",
+  express.static(path.join(__dirname, "viewer/build"))
 );
 
 app.get("/", (req, res) => {
@@ -56,12 +56,9 @@ app.get("/", (req, res) => {
   if (!req.url.includes("uuid")) {
     return res.redirect(`/legacy_viewer${req.url}`);
   }
-
-  // just send hello world for now
-  res.send("Hello world");
-
-  // req.url = `/legacy_viewer/${req.url}`;
-  // app.handle(req, res);
+  else {
+    return res.redirect(`/viewer${req.url}`);
+  }
 });
 
 // app.use('/', express.static('legacy_editor'))

@@ -7,6 +7,15 @@ yarn-error.log*
 lerna-debug.log*
 .pnpm-debug.log*
 
+# Fetches
+keys/
+legacy_viewer/
+static/
+
+# Builds
+viewer/build
+
+
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
