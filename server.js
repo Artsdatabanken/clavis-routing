@@ -46,17 +46,29 @@ app.use(
   express.static(path.join(__dirname, "legacy_viewer"))
 );
 
-app.use(
-  "/viewer",
-  express.static(path.join(__dirname, "viewer/build"))
-);
+app.use("/viewer", express.static(path.join(__dirname, "viewer/build")));
+
+// for /key/:uuid requests, return the corresponding json file
+app.get("/key/:uuid", (req, res) => {
+  const uuid = req.params.uuid;
+
+  // get the json file starting with the uuid
+  var files = fs
+    .readdirSync(path.join(__dirname, "keys"))
+    .filter((fn) => fn.startsWith(uuid));
+  if (files.length > 0) {
+    const path = `keys/${files[0]}`;
+    res.sendFile(path, { root: __dirname });
+  } else {
+    res.status(404).send("Key not found");
+  }
+});
 
 app.get("/", (req, res) => {
   // if there is no uuid argument, redirect to the legacy viewer
-  if (!req.url.includes("uuid")) {
+  if (req.url.includes("csv")) {
     return res.redirect(`/legacy_viewer${req.url}`);
-  }
-  else {
+  } else {
     return res.redirect(`/viewer${req.url}`);
   }
 });
