@@ -6,6 +6,18 @@ EXPOSE 5000
 WORKDIR /app
 
 RUN git clone https://github.com/Artsdatabanken/identification_key.git legacy_viewer
+RUN git clone https://github.com/Artsdatabanken/clavis-keys.git keys
+
+COPY ./viewer /app/viewer
+
+WORKDIR /app/viewer
+
+RUN ls -hal
+
+RUN npm install
+RUN npm run build
+
+WORKDIR /app
 
 
 # Install app dependencies
