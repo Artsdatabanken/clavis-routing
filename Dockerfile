@@ -39,3 +39,4 @@ USER dockerrunner
 COPY . .
 
 CMD [ "node", "server.js" ]
+
