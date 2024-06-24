@@ -73,6 +73,18 @@ app.get("/", (req, res) => {
   }
 });
 
+app.get("/version", (req, res) => {
+  let v = "Gitless";
+  const gitfile = ".git/FETCH_HEAD";
+  if (fs.existsSync(gitfile)) {
+    v = fs.readFileSync(gitfile).toString().split("\t")[0];
+  }
+
+  fs.stat("./server.js", function (err, stats) {
+    res.status(200).send(`<h3>${v}</h3><hr/>${stats.mtime.toUTCString()}`);
+  });
+});
+
 // app.use('/', express.static('legacy_editor'))
 
 app.listen(port, console.log(`Server now running on port ${port}`));
