@@ -41,3 +41,8 @@ stages:
         repository: 'artsdatabanken/clavis-routing'
         command: 'push'
         tags: '$(tag)'
+    - task: AzureAppServiceManage@0
+      inputs:
+        azureSubscription: 'prod-deploy-code'
+        Action: 'Restart Azure App Service'
+        WebAppName: 'adb-prod-clavis-as'
