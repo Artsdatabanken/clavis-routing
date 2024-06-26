@@ -19,7 +19,7 @@ var getUrlParameter = function getUrlParameter(sParam) {
 var height = getUrlParameter("height") || "100%";
 
 var sheet = document.createElement("style");
-sheet.innerHTML = "html, body {height: " + height + "; overflow: scroll;}";
+sheet.innerHTML = "html, body {height: " + height + ";}";
 document.body.appendChild(sheet);
 
 const container = document.getElementById("root");
