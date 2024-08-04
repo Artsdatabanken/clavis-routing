@@ -60,7 +60,7 @@ app.get("/key/:uuid", (req, res) => {
     const path = `keys/${files[0]}`;
     res.sendFile(path, { root: __dirname });
   } else {
-    res.status(404).send("Key not found");
+    res.status(404).send("Key not found, Reload docker if keys were added");
   }
 });
 
