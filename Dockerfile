@@ -5,8 +5,9 @@ EXPOSE 5000
 # Create app directory
 WORKDIR /app
 
+COPY . .
+
 RUN git clone https://github.com/Artsdatabanken/identification_key.git legacy_viewer
-RUN git clone https://github.com/Artsdatabanken/clavis-keys.git keys
 
 COPY ./viewer /app/viewer
 
@@ -34,9 +35,13 @@ RUN npm ci --only=production
 RUN groupadd --gid 1007 dockerrunner && useradd -r --uid 1007 -g dockerrunner dockerrunner
 RUN mkdir -p log && touch log/log.txt && chown dockerrunner log/log.txt
 RUN mkdir -p log/taxa
+
+RUN mkdir -p keys && chown dockerrunner keys
+RUN mkdir -p clavis-keys && chown dockerrunner clavis-keys
+
+
 USER dockerrunner
 
-COPY . .
 
 CMD [ "node", "server.js" ]
 

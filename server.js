@@ -11,10 +11,10 @@ const apiLimiter = rateLimit({
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
   handler: (request, response, next, options) => {
-    writeErrorLog(
-      `Too many misc API requests`,
-      `IP ${request.client._peername.address}`
-    );
+    // writeErrorLog(
+    //   `Too many misc API requests`,
+    //   `IP ${request.client._peername.address}`
+    // );
     return response.status(options.statusCode).send(options.message);
   },
 });
@@ -30,6 +30,7 @@ var corsOptions = {
 };
 
 app.use(cors(corsOptions));
+app.use(apiLimiter);
 
 app.use(function (req, res, next) {
   if (req.secure) {
@@ -48,20 +49,61 @@ app.use(
 
 app.use("/viewer", express.static(path.join(__dirname, "viewer/build")));
 
-// for /key/:uuid requests, return the corresponding json file
-app.get("/key/:uuid", (req, res) => {
-  const uuid = req.params.uuid;
-
-  // get the json file starting with the uuid
+const getKey = (uuid) => {
   var files = fs
     .readdirSync(path.join(__dirname, "keys"))
     .filter((fn) => fn.startsWith(uuid));
   if (files.length > 0) {
     const path = `keys/${files[0]}`;
-    res.sendFile(path, { root: __dirname });
-  } else {
-    res.status(404).send("Key not found");
+    return path;
   }
+  return null;
+};
+
+// for /key/:uuid requests, return the corresponding json file
+app.get("/key/:uuid", (req, res) => {
+  const uuid = req.params.uuid;
+
+  // get the json file starting with the uuid
+  var keyfile = getKey(uuid);
+
+  if (keyfile) {
+    res.sendFile(keyfile, { root: __dirname });
+    return;
+  } else {
+    // if the key is not found, get all keys from the github repo https://github.com/Artsdatabanken/clavis-keys and store them in the keys folder
+    const { exec } = require("child_process");
+    exec(`git clone https://github.com/Artsdatabanken/clavis-keys.git`);
+
+    var files = fs.readdirSync(path.join(__dirname, "clavis-keys"));
+
+    files.forEach((file) => {
+      // if the file is a json file and it is not in the keys folder or the file in the keys folder is not the same size as the file in the clavis-keys folder, move the file to the keys folder
+      if (
+        file.endsWith(".json") &&
+        (!fs.existsSync(`keys/${file}`) ||
+          fs.statSync(`clavis-keys/${file}`).size !=
+            fs.statSync(
+              `keys/${fs.readdirSync(path.join(__dirname, "keys"))[0]}`
+            ).size)
+      ) {
+        fs.renameSync(`clavis-keys/${file}`, `keys/${file}`);
+      }
+      // otherwise, delete the file
+      else {
+        fs.rmSync(`clavis-keys/${file}`, { recursive: true, force: true });
+      }
+    });
+  }
+
+  // Try again to get the json file starting with the uuid now that it should be in the keys folder
+  if (keyfile) {
+    res.sendFile(keyfile, { root: __dirname });
+    return;
+  }
+
+  // if the key is still not found, return 404
+  res.status(404).send("Key not found");
 });
 
 app.get("/", (req, res) => {
