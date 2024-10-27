@@ -11,10 +11,10 @@ const apiLimiter = rateLimit({
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
   handler: (request, response, next, options) => {
-    writeErrorLog(
-      `Too many misc API requests`,
-      `IP ${request.client._peername.address}`
-    );
+    // writeErrorLog(
+    //   `Too many misc API requests`,
+    //   `IP ${request.client._peername.address}`
+    // );
     return response.status(options.statusCode).send(options.message);
   },
 });
