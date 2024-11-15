@@ -87,6 +87,7 @@ app.get("/key/:uuid", (req, res) => {
               `keys/${fs.readdirSync(path.join(__dirname, "keys"))[0]}`
             ).size)
       ) {
+        fs.rmSync(`keys/${file}`, { recursive: true, force: true });
         fs.renameSync(`clavis-keys/${file}`, `keys/${file}`);
       }
       // otherwise, delete the file
