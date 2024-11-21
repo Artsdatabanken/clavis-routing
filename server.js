@@ -49,6 +49,10 @@ app.use(
 
 app.use("/viewer", express.static(path.join(__dirname, "viewer/build")));
 
+app.use("/editor", express.static(path.join(__dirname, "editor/build")));
+
+
+
 const getKey = (uuid) => {
   var files = fs
     .readdirSync(path.join(__dirname, "keys"))

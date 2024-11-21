@@ -1,5 +1,5 @@
 services:
-  legacy:
+  clavis:
     build: .
     ports:
       - "5000:5000"

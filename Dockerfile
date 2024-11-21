@@ -21,6 +21,20 @@ RUN npm run build
 WORKDIR /app
 
 
+RUN git clone https://github.com/Artsdatabanken/Clavis-editor.git editor
+
+WORKDIR /app/editor
+
+RUN ls -hal
+
+RUN npm install
+RUN npm run build
+
+WORKDIR /app
+
+
+
+
 # Install app dependencies
 # A wildcard is used to ensure both package.json AND package-lock.json are copied
 # where available (npm@5+)
