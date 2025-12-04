@@ -20,10 +20,11 @@ RUN npm run build
 
 WORKDIR /app
 
-# Commit d0c74e1
+# Commit 4725a43
 RUN git clone https://github.com/Artsdatabanken/Clavis-editor.git editor
-
 WORKDIR /app/editor
+
+RUN git switch dev
 
 RUN ls -hal
 
