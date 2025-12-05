@@ -20,7 +20,6 @@ RUN npm run build
 
 WORKDIR /app
 
-# Commit 4725a43
 RUN git clone https://github.com/Artsdatabanken/Clavis-editor.git editor
 WORKDIR /app/editor
 
