@@ -20,10 +20,10 @@ RUN npm run build
 
 WORKDIR /app
 
-# Commit 5bbd0d6
 RUN git clone https://github.com/Artsdatabanken/Clavis-editor.git editor
-
 WORKDIR /app/editor
+
+RUN if [ "$(git -C /app rev-parse --abbrev-ref HEAD)" = "dev" ]; then git switch dev; fi
 
 RUN ls -hal
 
