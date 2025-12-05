@@ -76,8 +76,8 @@ app.get("/key/:uuid", (req, res) => {
     return;
   } else {
     // if the key is not found, get all keys from the github repo https://github.com/Artsdatabanken/clavis-keys and store them in the keys folder
-    const { exec } = require("child_process");
-    exec(`git clone https://github.com/Artsdatabanken/clavis-keys.git`);
+    const { execSync } = require("child_process");
+    execSync(`git clone https://github.com/Artsdatabanken/clavis-keys.git`);
 
     var files = fs.readdirSync(path.join(__dirname, "clavis-keys"));
 
@@ -102,6 +102,7 @@ app.get("/key/:uuid", (req, res) => {
   }
 
   // Try again to get the json file starting with the uuid now that it should be in the keys folder
+  keyfile = getKey(uuid);
   if (keyfile) {
     res.sendFile(keyfile, { root: __dirname });
     return;
