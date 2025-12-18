@@ -117,9 +117,17 @@ app.post("/key/:uuid/refetch", (req, res) => {
   const uuid = req.params.uuid;
   const { execSync } = require("child_process");
 
+  const cleanup = () => {
+    try {
+      execSync(`rm -rf clavis-keys`, { cwd: __dirname });
+    } catch (e) {
+      // Ignore cleanup errors
+    }
+  };
+
   try {
     // Remove existing clavis-keys directory if it exists
-    fs.rmSync(path.join(__dirname, "clavis-keys"), { recursive: true, force: true });
+    cleanup();
 
     // Clone the repo
     execSync(`git clone https://github.com/Artsdatabanken/clavis-keys.git`, {
@@ -133,8 +141,7 @@ app.post("/key/:uuid/refetch", (req, res) => {
       .filter((fn) => fn.startsWith(uuid) && fn.endsWith(".json"));
 
     if (clonedFiles.length === 0) {
-      // Clean up cloned repo
-      fs.rmSync(path.join(__dirname, "clavis-keys"), { recursive: true, force: true });
+      cleanup();
       return res.status(404).send("Key not found in repository");
     }
 
@@ -154,12 +161,11 @@ app.post("/key/:uuid/refetch", (req, res) => {
     );
 
     // Clean up remaining cloned files
-    fs.rmSync(path.join(__dirname, "clavis-keys"), { recursive: true, force: true });
+    cleanup();
 
     res.status(200).json({ success: true, message: "Key refetched successfully", file: newFile });
   } catch (error) {
-    // Clean up on error
-    fs.rmSync(path.join(__dirname, "clavis-keys"), { recursive: true, force: true });
+    cleanup();
     res.status(500).json({ success: false, message: "Failed to refetch key", error: error.message });
   }
 });
