@@ -4,6 +4,7 @@ const rateLimit = require("express-rate-limit");
 const bodyParser = require("body-parser");
 const cors = require("cors");
 const path = require("path");
+const { maintainKey, startPeriodicMaintenance } = require("./keyMaintenance");
 
 const apiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // Timeframe
@@ -65,7 +66,7 @@ const getKey = (uuid) => {
 };
 
 // for /key/:uuid requests, return the corresponding json file
-app.get("/key/:uuid", (req, res) => {
+app.get("/key/:uuid", async (req, res) => {
   const uuid = req.params.uuid;
 
   // get the json file starting with the uuid
@@ -73,6 +74,7 @@ app.get("/key/:uuid", (req, res) => {
 
   if (keyfile) {
     res.sendFile(keyfile, { root: __dirname });
+    maintainKey(keyfile).catch(e => console.error(`[maintenance] Error:`, e.message));
     return;
   } else {
     // if the key is not found, get all keys from the github repo https://github.com/Artsdatabanken/clavis-keys and store them in the keys folder
@@ -104,6 +106,7 @@ app.get("/key/:uuid", (req, res) => {
   // Try again to get the json file starting with the uuid now that it should be in the keys folder
   keyfile = getKey(uuid);
   if (keyfile) {
+    await maintainKey(keyfile);
     res.sendFile(keyfile, { root: __dirname });
     return;
   }
@@ -113,7 +116,7 @@ app.get("/key/:uuid", (req, res) => {
 });
 
 // Force refetch a key from the github repo
-app.post("/key/:uuid/refetch", (req, res) => {
+app.post("/key/:uuid/refetch", async (req, res) => {
   const uuid = req.params.uuid;
   const { execSync } = require("child_process");
 
@@ -163,6 +166,8 @@ app.post("/key/:uuid/refetch", (req, res) => {
     // Clean up remaining cloned files
     cleanup();
 
+    await maintainKey(`keys/${newFile}`);
+
     res.status(200).json({ success: true, message: "Key refetched successfully", file: newFile });
   } catch (error) {
     cleanup();
@@ -193,4 +198,7 @@ app.get("/version", (req, res) => {
 
 // app.use('/', express.static('legacy_editor'))
 
-app.listen(port, console.log(`Server now running on port ${port}`));
+app.listen(port, () => {
+  console.log(`Server now running on port ${port}`);
+  startPeriodicMaintenance();
+});
