@@ -81,7 +81,7 @@ async function maintainKey(filePath) {
       if (Array.isArray(vernaculars) && vernaculars.length > 0) {
         const newVernacular = {};
         for (const v of vernaculars) {
-          if (v.languageIsoCode && v.vernacularName) {
+          if (v.languageIsoCode && v.vernacularName && v.vernacularNameStatus === "Recommended") {
             newVernacular[v.languageIsoCode] = v.vernacularName;
           }
         }
