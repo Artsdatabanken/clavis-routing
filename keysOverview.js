@@ -34,15 +34,26 @@ const licenseLabel = (url) => {
   return url;
 };
 
+const fileToUrl = (file) => {
+  if (!file) return null;
+  if (typeof file.file === "string") return file.file;
+  const url = file.url;
+  if (typeof url === "string") return url;
+  if (url && url.serviceId === "service:nbic_media" && url.externalId) {
+    return `https://www.artsdatabanken.no/Media/${encodeURIComponent(url.externalId)}?mode=480x480`;
+  }
+  return null;
+};
+
 const resolveMediaUrl = (mediaId, mediaElements) => {
   if (!mediaId || !Array.isArray(mediaElements)) return null;
   const el = mediaElements.find((m) => m.id === mediaId);
   const file = el && el.mediaElement && el.mediaElement.file;
   if (!file) return null;
-  if (typeof file.file === "string") return file.file;
-  const url = file.url;
-  if (url && url.serviceId === "service:nbic_media" && url.externalId) {
-    return `https://www.artsdatabanken.no/Media/${encodeURIComponent(url.externalId)}?mode=480x480`;
+  const files = Array.isArray(file) ? file : [file];
+  for (const f of files) {
+    const u = fileToUrl(f);
+    if (u) return u;
   }
   return null;
 };
