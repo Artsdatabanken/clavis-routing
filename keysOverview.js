@@ -34,6 +34,46 @@ const licenseLabel = (url) => {
   return url;
 };
 
+const fileToUrl = (file) => {
+  if (!file) return null;
+  if (typeof file.file === "string") return file.file;
+  const url = file.url;
+  if (typeof url === "string") return url;
+  if (url && url.serviceId === "service:nbic_media" && url.externalId) {
+    return `https://www.artsdatabanken.no/Media/${encodeURIComponent(url.externalId)}?mode=480x480`;
+  }
+  return null;
+};
+
+const resolveMediaUrl = (mediaId, mediaElements) => {
+  if (!mediaId || !Array.isArray(mediaElements)) return null;
+  const el = mediaElements.find((m) => m.id === mediaId);
+  const file = el && el.mediaElement && el.mediaElement.file;
+  if (!file) return null;
+  const files = Array.isArray(file) ? file : [file];
+  for (const f of files) {
+    const u = fileToUrl(f);
+    if (u) return u;
+  }
+  return null;
+};
+
+const findTaxonMedia = (taxa) => {
+  if (!Array.isArray(taxa)) return null;
+  const queue = [...taxa];
+  while (queue.length) {
+    const t = queue.shift();
+    if (t && t.media) return t.media;
+    if (t && Array.isArray(t.children)) queue.push(...t.children);
+  }
+  return null;
+};
+
+const pickImageUrl = (data) => {
+  const mediaId = data.media || findTaxonMedia(data.taxa);
+  return resolveMediaUrl(mediaId, data.mediaElements);
+};
+
 const fetchAllKeys = () => {
   try { execSync(`rm -rf clavis-keys`, { cwd: __dirname }); } catch (e) {}
 
@@ -71,6 +111,7 @@ const readEntry = (file, preferred) => {
       languages: data.language || [],
       taxaCount: Array.isArray(data.taxa) ? data.taxa.length : null,
       lastModified: data.lastModified,
+      image: pickImageUrl(data),
     };
   } catch (e) {
     return null;
@@ -99,17 +140,24 @@ const renderCard = (k) => {
     `<span class="field">Updated<strong>${modified}</strong></span>`,
   ].filter(Boolean).join("");
 
+  const thumb = k.image
+    ? `<a class="thumb" href="/?id=${encodeURIComponent(k.id)}" aria-hidden="true" tabindex="-1"><img src="${escapeHtml(k.image)}" alt="" loading="lazy"></a>`
+    : "";
+
   return `
-        <article class="card">
-          <div class="card-head">
-            <div>
-              <h2><a href="/?id=${encodeURIComponent(k.id)}">${escapeHtml(k.title)}</a></h2>
-              ${meta.length ? `<div class="meta">${meta.join("")}</div>` : ""}
+        <article class="card${k.image ? " has-thumb" : ""}">
+          ${thumb}
+          <div class="card-body">
+            <div class="card-head">
+              <div>
+                <h2><a href="/?id=${encodeURIComponent(k.id)}">${escapeHtml(k.title)}</a></h2>
+                ${meta.length ? `<div class="meta">${meta.join("")}</div>` : ""}
+              </div>
+              <a class="open" href="/?id=${encodeURIComponent(k.id)}">Open →</a>
             </div>
-            <a class="open" href="/?id=${encodeURIComponent(k.id)}">Open →</a>
+            ${k.description ? `<p class="desc">${escapeHtml(k.description)}</p>` : ""}
+            <footer class="card-foot">${footerFields}</footer>
           </div>
-          ${k.description ? `<p class="desc">${escapeHtml(k.description)}</p>` : ""}
-          <footer class="card-foot">${footerFields}</footer>
         </article>`;
 };
 
@@ -216,13 +264,38 @@ const STYLES = `
     border-radius: 12px;
     padding: 1.25rem 1.5rem;
     display: flex;
-    flex-direction: column;
-    gap: .75rem;
+    gap: 1.25rem;
     transition: border-color .12s ease, box-shadow .12s ease;
   }
   .card:hover {
     border-color: var(--accent);
     box-shadow: 0 4px 16px rgba(0,0,0,.06);
+  }
+  .card-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+  }
+  .thumb {
+    flex-shrink: 0;
+    width: 96px;
+    height: 96px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg);
+    display: block;
+  }
+  .thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  @media (max-width: 500px) {
+    .card { flex-direction: column; }
+    .thumb { width: 100%; height: 160px; }
   }
   .card-head {
     display: flex;
