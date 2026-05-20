@@ -5,6 +5,7 @@ const bodyParser = require("body-parser");
 const cors = require("cors");
 const path = require("path");
 const { maintainKey, startPeriodicMaintenance } = require("./keyMaintenance");
+const keysOverview = require("./keysOverview");
 
 const apiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // Timeframe
@@ -174,6 +175,8 @@ app.post("/key/:uuid/refetch", async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to refetch key", error: error.message });
   }
 });
+
+app.get("/keys", keysOverview);
 
 app.get("/", (req, res) => {
   // if there is no uuid argument, redirect to the legacy viewer
