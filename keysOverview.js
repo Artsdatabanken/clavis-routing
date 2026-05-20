@@ -69,6 +69,22 @@ const findTaxonMedia = (taxa) => {
   return null;
 };
 
+const countEndpointTaxa = (taxa) => {
+  if (!Array.isArray(taxa)) return 0;
+  let n = 0;
+  for (const t of taxa) {
+    if (!t) continue;
+    if (t.isEndPoint) {
+      n += 1;
+    } else if (Array.isArray(t.children) && t.children.length) {
+      n += countEndpointTaxa(t.children);
+    } else {
+      n += 1;
+    }
+  }
+  return n;
+};
+
 const pickImageUrl = (data) => {
   const mediaId = data.media || findTaxonMedia(data.taxa);
   return resolveMediaUrl(mediaId, data.mediaElements);
@@ -109,7 +125,7 @@ const readEntry = (file, preferred) => {
       creator: creatorPerson ? pickLocalized(creatorPerson.name, preferred) : null,
       license: data.license,
       languages: data.language || [],
-      taxaCount: Array.isArray(data.taxa) ? data.taxa.length : null,
+      taxaCount: Array.isArray(data.taxa) ? countEndpointTaxa(data.taxa) : null,
       lastModified: data.lastModified,
       image: pickImageUrl(data),
     };
