@@ -18,7 +18,7 @@ RUN ls -hal
 RUN npm install
 # On dev branch, swap in viewer-web's dev build before bundling.
 # setup-viewer.js no-ops on any other branch, so main is unaffected.
-RUN npm run setup-dev
+RUN npm run setup-dev --if-present
 RUN npm run build
 
 WORKDIR /app
@@ -32,7 +32,7 @@ RUN ls -hal
 
 RUN npm install
 # Same dev/main split as the viewer above — script self-gates on branch.
-RUN npm run setup-dev
+RUN npm run setup-dev --if-present
 RUN npm run build
 
 WORKDIR /app
