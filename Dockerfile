@@ -9,14 +9,26 @@ COPY . .
 
 RUN git clone https://github.com/Artsdatabanken/identification_key.git legacy_viewer
 
-# Reattach the routing checkout to a local `dev` branch when the source
-# came in via a detached-HEAD checkout (Azure pipelines does this), so
-# downstream setup-viewer.js calls — which detect dev via
-# `git rev-parse --abbrev-ref HEAD` — actually see "dev".
-RUN if [ "$(git -C /app rev-parse --abbrev-ref HEAD)" != "dev" ] \
-       && git -C /app for-each-ref --points-at HEAD --format='%(refname:short)' | grep -qE '^(origin/)?dev$'; then \
-         git -C /app checkout -B dev; \
-    fi
+# BUILD_ID is set by the CI pipeline to a unique value per run (e.g.
+# Azure's $(Build.BuildId)). It does double duty:
+#   1. Marks "this is a CI build of the dev branch" (the pipeline only
+#      triggers on dev pushes), so we can attach /app to a local dev
+#      branch unconditionally — setup-viewer.js gates on
+#      `git rev-parse --abbrev-ref HEAD` and Azure's checkout leaves us
+#      in detached HEAD.
+#   2. Busts Docker layer cache from this RUN onward, so that subsequent
+#      live fetches (setup-dev, git clone of the editor) always re-pull
+#      the latest dev branches instead of returning a stale cached layer.
+# Local builds leave BUILD_ID=local and skip the dev attach.
+ARG BUILD_ID=local
+RUN echo "=== BUILD_ID=$BUILD_ID ===" \
+ && echo "=== /app .git: $(ls /app/.git 2>&1 | head -1) ===" \
+ && echo "=== /app HEAD before: $(git -C /app rev-parse --abbrev-ref HEAD 2>&1) ===" \
+ && echo "=== /app refs at HEAD: $(git -C /app for-each-ref --points-at HEAD --format='%(refname:short)' 2>&1 | tr '\n' ' ') ===" \
+ && if [ "$BUILD_ID" != "local" ] && [ -d /app/.git ]; then \
+      git -C /app checkout -B dev 2>&1 || echo "WARNING: checkout -B dev failed"; \
+    fi \
+ && echo "=== /app HEAD after: $(git -C /app rev-parse --abbrev-ref HEAD 2>&1) ==="
 
 COPY ./viewer /app/viewer
 
@@ -25,11 +37,6 @@ WORKDIR /app/viewer
 RUN ls -hal
 
 RUN npm install
-# Bust Docker layer cache from here on so dev pushes to clavis-viewer-web
-# or Clavis-editor (both pulled live via setup-dev / git clone below) are
-# actually re-fetched, not satisfied from a stale cached layer. CI passes
-# a unique BUILD_ID per run.
-ARG BUILD_ID=local
 # On dev branch, swap in viewer-web's dev build before bundling.
 # setup-viewer.js no-ops on any other branch, so main is unaffected.
 RUN echo "build_id=$BUILD_ID" && npm run setup-dev --if-present
@@ -37,7 +44,7 @@ RUN npm run build
 
 WORKDIR /app
 
-RUN git clone https://github.com/Artsdatabanken/Clavis-editor.git editor
+RUN echo "build_id=$BUILD_ID" && git clone https://github.com/Artsdatabanken/Clavis-editor.git editor
 WORKDIR /app/editor
 
 RUN if [ "$(git -C /app rev-parse --abbrev-ref HEAD)" = "dev" ]; then git switch dev; fi
