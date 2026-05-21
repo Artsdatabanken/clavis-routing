@@ -9,6 +9,15 @@ COPY . .
 
 RUN git clone https://github.com/Artsdatabanken/identification_key.git legacy_viewer
 
+# Reattach the routing checkout to a local `dev` branch when the source
+# came in via a detached-HEAD checkout (Azure pipelines does this), so
+# downstream setup-viewer.js calls — which detect dev via
+# `git rev-parse --abbrev-ref HEAD` — actually see "dev".
+RUN if [ "$(git -C /app rev-parse --abbrev-ref HEAD)" != "dev" ] \
+       && git -C /app for-each-ref --points-at HEAD --format='%(refname:short)' | grep -qE '^(origin/)?dev$'; then \
+         git -C /app checkout -B dev; \
+    fi
+
 COPY ./viewer /app/viewer
 
 WORKDIR /app/viewer
