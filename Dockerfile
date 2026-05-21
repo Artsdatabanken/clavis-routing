@@ -25,9 +25,14 @@ WORKDIR /app/viewer
 RUN ls -hal
 
 RUN npm install
+# Bust Docker layer cache from here on so dev pushes to clavis-viewer-web
+# or Clavis-editor (both pulled live via setup-dev / git clone below) are
+# actually re-fetched, not satisfied from a stale cached layer. CI passes
+# a unique BUILD_ID per run.
+ARG BUILD_ID=local
 # On dev branch, swap in viewer-web's dev build before bundling.
 # setup-viewer.js no-ops on any other branch, so main is unaffected.
-RUN npm run setup-dev --if-present
+RUN echo "build_id=$BUILD_ID" && npm run setup-dev --if-present
 RUN npm run build
 
 WORKDIR /app
