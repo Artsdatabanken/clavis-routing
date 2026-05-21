@@ -49,9 +49,30 @@ app.use(
   express.static(path.join(__dirname, "legacy_viewer")),
 );
 
-app.use("/viewer", express.static(path.join(__dirname, "viewer/build")));
+const devViewerUrl = process.env.NODE_ENV === "development" && process.env.DEV_VIEWER_URL;
+const devEditorUrl = process.env.NODE_ENV === "development" && process.env.DEV_EDITOR_URL;
 
-app.use("/editor", express.static(path.join(__dirname, "editor/build")));
+const devProxies = [];
+
+function devProxy(routePath, target) {
+  const { createProxyMiddleware } = require("http-proxy-middleware");
+  const mw = createProxyMiddleware({ target, changeOrigin: true, ws: true });
+  devProxies.push({ routePath, mw });
+  console.log(`[dev] Proxying ${routePath} → ${target}`);
+  return mw;
+}
+
+if (devViewerUrl) {
+  app.use("/viewer", devProxy("/viewer", devViewerUrl));
+} else {
+  app.use("/viewer", express.static(path.join(__dirname, "viewer/build")));
+}
+
+if (devEditorUrl) {
+  app.use("/editor", devProxy("/editor", devEditorUrl));
+} else {
+  app.use("/editor", express.static(path.join(__dirname, "editor/build")));
+}
 
 
 
@@ -201,7 +222,18 @@ app.get("/version", (req, res) => {
 
 // app.use('/', express.static('legacy_editor'))
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`Server now running on port ${port}`);
   startPeriodicMaintenance();
 });
+
+if (devProxies.length) {
+  server.on("upgrade", (req, socket, head) => {
+    const match = devProxies.find((p) => req.url && req.url.startsWith(p.routePath));
+    if (match && typeof match.mw.upgrade === "function") {
+      match.mw.upgrade(req, socket, head);
+    } else {
+      socket.destroy();
+    }
+  });
+}
