@@ -1,6 +1,6 @@
 {
   "name": "@artsdatabanken/clavis-viewer-web-landing",
-  "homepage": ".",
+  "homepage": "/viewer",
   "version": "1.0.0",
   "private": true,
   "scripts": {

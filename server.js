@@ -56,20 +56,29 @@ const devProxies = [];
 
 function devProxy(routePath, target) {
   const { createProxyMiddleware } = require("http-proxy-middleware");
-  const mw = createProxyMiddleware({ target, changeOrigin: true, ws: true });
+  // pathFilter + mounting at root keeps the routePath in the forwarded URL.
+  // (Mounting via app.use(routePath, mw) would strip routePath before
+  //  reaching the proxy, but CRA dev servers configured with homepage=routePath
+  //  serve assets under that same prefix and need the full path.)
+  const mw = createProxyMiddleware({
+    target,
+    changeOrigin: true,
+    ws: true,
+    pathFilter: (pathname) => pathname === routePath || pathname.startsWith(routePath + "/")
+  });
   devProxies.push({ routePath, mw });
   console.log(`[dev] Proxying ${routePath} → ${target}`);
-  return mw;
+  app.use(mw);
 }
 
 if (devViewerUrl) {
-  app.use("/viewer", devProxy("/viewer", devViewerUrl));
+  devProxy("/viewer", devViewerUrl);
 } else {
   app.use("/viewer", express.static(path.join(__dirname, "viewer/build")));
 }
 
 if (devEditorUrl) {
-  app.use("/editor", devProxy("/editor", devEditorUrl));
+  devProxy("/editor", devEditorUrl);
 } else {
   app.use("/editor", express.static(path.join(__dirname, "editor/build")));
 }
