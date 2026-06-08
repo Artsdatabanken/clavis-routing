@@ -64,7 +64,15 @@ function devProxy(routePath, target) {
     target,
     changeOrigin: true,
     ws: true,
-    pathFilter: (pathname) => pathname === routePath || pathname.startsWith(routePath + "/")
+    pathFilter: (pathname) => pathname === routePath || pathname.startsWith(routePath + "/"),
+    on: {
+      proxyRes: (proxyRes) => {
+        // CRA dev server emits Connection: close, which Firefox + some
+        // extensions handle badly on long-running localhost dev sessions
+        // (speculative preloads get cancelled, real requests don't recover).
+        proxyRes.headers["connection"] = "keep-alive";
+      }
+    }
   });
   devProxies.push({ routePath, mw });
   console.log(`[dev] Proxying ${routePath} → ${target}`);
@@ -84,6 +92,108 @@ if (devEditorUrl) {
 }
 
 
+
+const pageIntroCache = new Map();
+const PAGE_INTRO_TTL_MS = 60 * 60 * 1000;
+
+const stripHtml = (s) =>
+  s
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const fetchSpeciesNode = async (filterField, filterValue) => {
+  const types = ["species_description", "page", "species_guide", "species_guide_subpage"];
+  for (const t of types) {
+    const url = `https://artsdatabanken.no/jsonapi/node/${t}?filter[${filterField}]=${filterValue}&fields[node--${t}]=field_ingress,path,langcode`;
+    const resp = await fetch(url, { headers: { Accept: "application/vnd.api+json" } });
+    if (!resp.ok) continue;
+    const data = await resp.json();
+    if (data.data && data.data.length) return data.data[0];
+  }
+  return null;
+};
+
+const extractIngress = (node) => {
+  const ingress = node && node.attributes && node.attributes.field_ingress;
+  if (ingress && ingress.value) {
+    const text = stripHtml(ingress.value);
+    return text || null;
+  }
+  return null;
+};
+
+app.get("/api/page-intro/:externalId", async (req, res) => {
+  const externalId = req.params.externalId;
+  if (!/^\d+$/.test(externalId)) return res.status(400).json({});
+
+  const cached = pageIntroCache.get(externalId);
+  if (cached && cached.expires > Date.now()) {
+    return res.json(cached.body);
+  }
+
+  try {
+    const pagesResp = await fetch(`https://artsdatabanken.no/Pages/${externalId}`, {
+      redirect: "manual",
+    });
+    const loc = pagesResp.headers.get("location") || "";
+    const m = loc.match(/\/node\/(\d+)/);
+    if (!m) {
+      const body = {};
+      pageIntroCache.set(externalId, { body, expires: Date.now() + PAGE_INTRO_TTL_MS });
+      return res.json(body);
+    }
+    const nid = m[1];
+    const node = await fetchSpeciesNode("drupal_internal__nid", nid);
+    const ingress = extractIngress(node);
+    const langcode = node && node.attributes && node.attributes.langcode;
+    const body = {};
+    if (ingress) body.ingress = ingress;
+    if (langcode) body.langcode = langcode;
+    pageIntroCache.set(externalId, { body, expires: Date.now() + PAGE_INTRO_TTL_MS });
+    res.set("Cache-Control", "public, max-age=3600");
+    res.json(body);
+  } catch (e) {
+    console.error(`[page-intro] ${externalId}:`, e.message);
+    res.json({});
+  }
+});
+
+const taxonIntroCache = new Map();
+
+app.get("/api/taxon-intro/:externalId", async (req, res) => {
+  const externalId = req.params.externalId;
+  if (!/^\d+$/.test(externalId)) return res.status(400).json({});
+
+  const cached = taxonIntroCache.get(externalId);
+  if (cached && cached.expires > Date.now()) {
+    return res.json(cached.body);
+  }
+
+  try {
+    const node = await fetchSpeciesNode("field_scientific_name_id", externalId);
+    const ingress = extractIngress(node);
+    const alias = node && node.attributes && node.attributes.path && node.attributes.path.alias;
+    const pageUrl = alias ? `https://artsdatabanken.no${alias}` : null;
+    const langcode = node && node.attributes && node.attributes.langcode;
+    const body = {};
+    if (ingress) body.ingress = ingress;
+    if (pageUrl) body.pageUrl = pageUrl;
+    if (langcode) body.langcode = langcode;
+    taxonIntroCache.set(externalId, { body, expires: Date.now() + PAGE_INTRO_TTL_MS });
+    res.set("Cache-Control", "public, max-age=3600");
+    res.json(body);
+  } catch (e) {
+    console.error(`[taxon-intro] ${externalId}:`, e.message);
+    res.json({});
+  }
+});
 
 const getKey = (uuid) => {
   var files = fs
