@@ -86,15 +86,27 @@ try {
 
   console.log('\nCopying to node_modules...\n');
 
+  // Wipe the npm-installed viewer-web (latest published) entirely. Otherwise its
+  // nested node_modules/react and other transitive artifacts persist alongside
+  // the new dist, and Vite ends up bundling two Reacts → React error #525
+  // ('A React Element from an older version of React was rendered').
+  fs.rmSync(viewerPath, { recursive: true, force: true });
+  fs.mkdirSync(viewerPath, { recursive: true });
+
   const targetDist = path.join(viewerPath, 'dist');
-  if (fs.existsSync(targetDist)) fs.rmSync(targetDist, { recursive: true });
   fs.cpSync(tempDist, targetDist, { recursive: true });
   fs.copyFileSync(path.join(tempDir, 'package.json'), path.join(viewerPath, 'package.json'));
 
-  const cacheDir = path.join(projectRoot, 'node_modules', '.cache');
-  if (fs.existsSync(cacheDir)) {
-    console.log('Clearing webpack cache...');
-    fs.rmSync(cacheDir, { recursive: true });
+  // Vite caches resolved modules under node_modules/.vite. Stale entries
+  // pointing at the just-wiped viewer-web break the next build.
+  for (const cacheDir of [
+    path.join(projectRoot, 'node_modules', '.cache'),
+    path.join(projectRoot, 'node_modules', '.vite'),
+  ]) {
+    if (fs.existsSync(cacheDir)) {
+      console.log(`Clearing ${path.basename(cacheDir)}...`);
+      fs.rmSync(cacheDir, { recursive: true });
+    }
   }
 
   console.log(`\n✓ clavis-viewer-web successfully updated from ${useLocal ? 'local directory' : 'GitHub dev branch'}`);
