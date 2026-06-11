@@ -11,7 +11,7 @@
     "setup-dev": "node scripts/setup-viewer.js"
   },
   "dependencies": {
-    "@artsdatabanken/clavis-viewer-web": "^1.2.0",
+    "@artsdatabanken/clavis-viewer-web": "latest",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
