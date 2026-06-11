@@ -1,7 +1,6 @@
 const express = require("express");
 const fs = require("fs");
 const rateLimit = require("express-rate-limit");
-const bodyParser = require("body-parser");
 const cors = require("cors");
 const path = require("path");
 const { maintainKey, startPeriodicMaintenance } = require("./keyMaintenance");
@@ -24,8 +23,8 @@ const apiLimiter = rateLimit({
 const app = express();
 const port = 5000;
 
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: false }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 var corsOptions = {
   origin: "*",
