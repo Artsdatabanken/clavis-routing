@@ -167,6 +167,17 @@ app.get("/api/page-intro/:externalId", async (req, res) => {
 
 const taxonIntroCache = new Map();
 
+const fetchTaxonOverviewUrl = async (scientificNameId) => {
+  const resp = await fetch(
+    `https://artsdatabanken.no/api/Taxon/ByScientificNameId/${scientificNameId}`
+  );
+  if (!resp.ok) return null;
+  const data = await resp.json();
+  const record = Array.isArray(data) ? data[0] : data;
+  const taxonId = record && record.taxonID;
+  return taxonId ? `https://artsdatabanken.no/arter/takson/${taxonId}` : null;
+};
+
 app.get("/api/taxon-intro/:externalId", async (req, res) => {
   const externalId = req.params.externalId;
   if (!/^\d+$/.test(externalId)) return res.status(400).json({});
@@ -180,11 +191,15 @@ app.get("/api/taxon-intro/:externalId", async (req, res) => {
     const node = await fetchSpeciesNode("field_scientific_name_id", externalId);
     const ingress = extractIngress(node);
     const alias = node && node.attributes && node.attributes.path && node.attributes.path.alias;
-    const pageUrl = alias ? `https://artsdatabanken.no${alias}` : null;
     const langcode = node && node.attributes && node.attributes.langcode;
     const body = {};
     if (ingress) body.ingress = ingress;
-    if (pageUrl) body.pageUrl = pageUrl;
+    if (alias) {
+      body.pageUrl = `https://artsdatabanken.no${alias}`;
+    } else {
+      const overviewUrl = await fetchTaxonOverviewUrl(externalId);
+      if (overviewUrl) body.pageUrl = overviewUrl;
+    }
     if (langcode) body.langcode = langcode;
     taxonIntroCache.set(externalId, { body, expires: Date.now() + PAGE_INTRO_TTL_MS });
     res.set("Cache-Control", "public, max-age=3600");
