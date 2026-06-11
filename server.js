@@ -1,9 +1,10 @@
 const express = require("express");
 const fs = require("fs");
 const rateLimit = require("express-rate-limit");
-const bodyParser = require("body-parser");
 const cors = require("cors");
 const path = require("path");
+const { maintainKey, startPeriodicMaintenance } = require("./keyMaintenance");
+const keysOverview = require("./keysOverview");
 
 const apiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // Timeframe
@@ -22,8 +23,8 @@ const apiLimiter = rateLimit({
 const app = express();
 const port = 5000;
 
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: false }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 var corsOptions = {
   origin: "*",
@@ -47,11 +48,166 @@ app.use(
   express.static(path.join(__dirname, "legacy_viewer")),
 );
 
-app.use("/viewer", express.static(path.join(__dirname, "viewer/build")));
+const devViewerUrl = process.env.NODE_ENV === "development" && process.env.DEV_VIEWER_URL;
+const devEditorUrl = process.env.NODE_ENV === "development" && process.env.DEV_EDITOR_URL;
 
-app.use("/editor", express.static(path.join(__dirname, "editor/build")));
+const devProxies = [];
+
+function devProxy(routePath, target) {
+  const { createProxyMiddleware } = require("http-proxy-middleware");
+  // pathFilter + mounting at root keeps the routePath in the forwarded URL.
+  // (Mounting via app.use(routePath, mw) would strip routePath before
+  //  reaching the proxy, but CRA dev servers configured with homepage=routePath
+  //  serve assets under that same prefix and need the full path.)
+  const mw = createProxyMiddleware({
+    target,
+    changeOrigin: true,
+    ws: true,
+    pathFilter: (pathname) => pathname === routePath || pathname.startsWith(routePath + "/"),
+    on: {
+      proxyRes: (proxyRes) => {
+        // CRA dev server emits Connection: close, which Firefox + some
+        // extensions handle badly on long-running localhost dev sessions
+        // (speculative preloads get cancelled, real requests don't recover).
+        proxyRes.headers["connection"] = "keep-alive";
+      }
+    }
+  });
+  devProxies.push({ routePath, mw });
+  console.log(`[dev] Proxying ${routePath} → ${target}`);
+  app.use(mw);
+}
+
+if (devViewerUrl) {
+  devProxy("/viewer", devViewerUrl);
+} else {
+  app.use("/viewer", express.static(path.join(__dirname, "viewer/build")));
+}
+
+if (devEditorUrl) {
+  devProxy("/editor", devEditorUrl);
+} else {
+  app.use("/editor", express.static(path.join(__dirname, "editor/build")));
+}
 
 
+
+const pageIntroCache = new Map();
+const PAGE_INTRO_TTL_MS = 60 * 60 * 1000;
+
+const stripHtml = (s) =>
+  s
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const fetchSpeciesNode = async (filterField, filterValue) => {
+  const types = ["species_description", "page", "species_guide", "species_guide_subpage"];
+  for (const t of types) {
+    const url = `https://artsdatabanken.no/jsonapi/node/${t}?filter[${filterField}]=${filterValue}&fields[node--${t}]=field_ingress,path,langcode`;
+    const resp = await fetch(url, { headers: { Accept: "application/vnd.api+json" } });
+    if (!resp.ok) continue;
+    const data = await resp.json();
+    if (data.data && data.data.length) return data.data[0];
+  }
+  return null;
+};
+
+const extractIngress = (node) => {
+  const ingress = node && node.attributes && node.attributes.field_ingress;
+  if (ingress && ingress.value) {
+    const text = stripHtml(ingress.value);
+    return text || null;
+  }
+  return null;
+};
+
+app.get("/api/page-intro/:externalId", async (req, res) => {
+  const externalId = req.params.externalId;
+  if (!/^\d+$/.test(externalId)) return res.status(400).json({});
+
+  const cached = pageIntroCache.get(externalId);
+  if (cached && cached.expires > Date.now()) {
+    return res.json(cached.body);
+  }
+
+  try {
+    const pagesResp = await fetch(`https://artsdatabanken.no/Pages/${externalId}`, {
+      redirect: "manual",
+    });
+    const loc = pagesResp.headers.get("location") || "";
+    const m = loc.match(/\/node\/(\d+)/);
+    if (!m) {
+      const body = {};
+      pageIntroCache.set(externalId, { body, expires: Date.now() + PAGE_INTRO_TTL_MS });
+      return res.json(body);
+    }
+    const nid = m[1];
+    const node = await fetchSpeciesNode("drupal_internal__nid", nid);
+    const ingress = extractIngress(node);
+    const langcode = node && node.attributes && node.attributes.langcode;
+    const body = {};
+    if (ingress) body.ingress = ingress;
+    if (langcode) body.langcode = langcode;
+    pageIntroCache.set(externalId, { body, expires: Date.now() + PAGE_INTRO_TTL_MS });
+    res.set("Cache-Control", "public, max-age=3600");
+    res.json(body);
+  } catch (e) {
+    console.error(`[page-intro] ${externalId}:`, e.message);
+    res.json({});
+  }
+});
+
+const taxonIntroCache = new Map();
+
+const fetchTaxonOverviewUrl = async (scientificNameId) => {
+  const resp = await fetch(
+    `https://artsdatabanken.no/api/Taxon/ByScientificNameId/${scientificNameId}`
+  );
+  if (!resp.ok) return null;
+  const data = await resp.json();
+  const record = Array.isArray(data) ? data[0] : data;
+  const taxonId = record && record.taxonID;
+  return taxonId ? `https://artsdatabanken.no/arter/takson/${taxonId}` : null;
+};
+
+app.get("/api/taxon-intro/:externalId", async (req, res) => {
+  const externalId = req.params.externalId;
+  if (!/^\d+$/.test(externalId)) return res.status(400).json({});
+
+  const cached = taxonIntroCache.get(externalId);
+  if (cached && cached.expires > Date.now()) {
+    return res.json(cached.body);
+  }
+
+  try {
+    const node = await fetchSpeciesNode("field_scientific_name_id", externalId);
+    const ingress = extractIngress(node);
+    const alias = node && node.attributes && node.attributes.path && node.attributes.path.alias;
+    const langcode = node && node.attributes && node.attributes.langcode;
+    const body = {};
+    if (ingress) body.ingress = ingress;
+    if (alias) {
+      body.pageUrl = `https://artsdatabanken.no${alias}`;
+    } else {
+      const overviewUrl = await fetchTaxonOverviewUrl(externalId);
+      if (overviewUrl) body.pageUrl = overviewUrl;
+    }
+    if (langcode) body.langcode = langcode;
+    taxonIntroCache.set(externalId, { body, expires: Date.now() + PAGE_INTRO_TTL_MS });
+    res.set("Cache-Control", "public, max-age=3600");
+    res.json(body);
+  } catch (e) {
+    console.error(`[taxon-intro] ${externalId}:`, e.message);
+    res.json({});
+  }
+});
 
 const getKey = (uuid) => {
   var files = fs
@@ -65,7 +221,7 @@ const getKey = (uuid) => {
 };
 
 // for /key/:uuid requests, return the corresponding json file
-app.get("/key/:uuid", (req, res) => {
+app.get("/key/:uuid", async (req, res) => {
   const uuid = req.params.uuid;
 
   // get the json file starting with the uuid
@@ -73,6 +229,7 @@ app.get("/key/:uuid", (req, res) => {
 
   if (keyfile) {
     res.sendFile(keyfile, { root: __dirname });
+    maintainKey(keyfile).catch(e => console.error(`[maintenance] Error:`, e.message));
     return;
   } else {
     // if the key is not found, get all keys from the github repo https://github.com/Artsdatabanken/clavis-keys and store them in the keys folder
@@ -104,6 +261,7 @@ app.get("/key/:uuid", (req, res) => {
   // Try again to get the json file starting with the uuid now that it should be in the keys folder
   keyfile = getKey(uuid);
   if (keyfile) {
+    await maintainKey(keyfile);
     res.sendFile(keyfile, { root: __dirname });
     return;
   }
@@ -113,7 +271,7 @@ app.get("/key/:uuid", (req, res) => {
 });
 
 // Force refetch a key from the github repo
-app.post("/key/:uuid/refetch", (req, res) => {
+app.post("/key/:uuid/refetch", async (req, res) => {
   const uuid = req.params.uuid;
   const { execSync } = require("child_process");
 
@@ -163,12 +321,16 @@ app.post("/key/:uuid/refetch", (req, res) => {
     // Clean up remaining cloned files
     cleanup();
 
+    await maintainKey(`keys/${newFile}`);
+
     res.status(200).json({ success: true, message: "Key refetched successfully", file: newFile });
   } catch (error) {
     cleanup();
     res.status(500).json({ success: false, message: "Failed to refetch key", error: error.message });
   }
 });
+
+app.get("/keys", keysOverview);
 
 app.get("/", (req, res) => {
   // if there is no uuid argument, redirect to the legacy viewer
@@ -193,4 +355,18 @@ app.get("/version", (req, res) => {
 
 // app.use('/', express.static('legacy_editor'))
 
-app.listen(port, console.log(`Server now running on port ${port}`));
+const server = app.listen(port, () => {
+  console.log(`Server now running on port ${port}`);
+  startPeriodicMaintenance();
+});
+
+if (devProxies.length) {
+  server.on("upgrade", (req, socket, head) => {
+    const match = devProxies.find((p) => req.url && req.url.startsWith(p.routePath));
+    if (match && typeof match.mw.upgrade === "function") {
+      match.mw.upgrade(req, socket, head);
+    } else {
+      socket.destroy();
+    }
+  });
+}

@@ -15,6 +15,10 @@ static/
 # Builds
 viewer/build
 
+# Local-dev symlink to the sibling Clavis-editor checkout
+# (the Docker build clones it from GitHub into /app/editor at image build)
+/editor
+
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
