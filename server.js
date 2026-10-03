@@ -332,13 +332,17 @@ app.post("/key/:uuid/refetch", async (req, res) => {
 
 app.get("/keys", keysOverview);
 
+// Landing page assets (fonts, logo, demo viewer); index is served by the "/" route below
+app.use(express.static(path.join(__dirname, "landing"), { index: false }));
+
 app.get("/", (req, res) => {
-  // if there is no uuid argument, redirect to the legacy viewer
+  // old links with a query (?id=..., ?csv=...) still go to the viewers
   if (req.url.includes("csv")) {
     return res.redirect(`/legacy_viewer${req.url}`);
-  } else {
+  } else if (Object.keys(req.query).length) {
     return res.redirect(`/viewer${req.url}`);
   }
+  res.sendFile(path.join(__dirname, "landing", "index.html"));
 });
 
 app.get("/version", (req, res) => {

@@ -80,3 +80,4 @@ You don't always need the whole orchestrator.
 - **Editor only**, against the published viewer-web: `cd Clavis-editor && npm start`.
 - **Editor against a local viewer-web**, without the orchestrator: in `Clavis-editor`, on `dev`, run `npm run setup-dev` once to swap in the sibling viewer-web's current build. Re-run after each viewer-web change. (The orchestrator automates this loop.)
 - **Routing only**, against built consumers: `node server.js` (no `NODE_ENV=development` → static-files mode).
+- **Landing page** (`/`): static files in `landing/`. The dragonfly demo in it is built from `landing-demo/` with `npm install && npm run build` there, which writes `landing/demo/`. Root URLs with a query (`/?id=...`) still redirect to the viewer.

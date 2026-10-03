@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Clavis</title>
+<meta name="description" content="Clavis is an open JSON format for identification keys, with an editor, a web viewer and a growing collection of keys.">
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+:root{
+  --paper:#f6f7f1;
+  --paper-2:#eef0e5;
+  --ink:#171a12;
+  --ink-2:#4d5342;
+  --ink-3:#7b8270;
+  --line:#d9ddcb;
+  --lime:#bada55;
+  --lime-ink:#5f7a12;
+  --lime-soft:#e9f2c4;
+  --mono-bg:#1c2016;
+  --mono-ink:#e6ead6;
+  --mono-key:#bada55;
+  --mono-str:#f1d68a;
+  --mono-num:#9fd0ff;
+  --focus:#2f6cd6;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --paper:#121408;
+    --paper-2:#1a1d0f;
+    --ink:#e9ecdc;
+    --ink-2:#b4baa4;
+    --ink-3:#7f8672;
+    --line:#2d321f;
+    --lime:#bada55;
+    --lime-ink:#c9e56f;
+    --lime-soft:#26301a;
+    --mono-bg:#0b0d05;
+    --mono-ink:#dfe4cf;
+    --focus:#8ab4ff;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --paper:#121408;
+  --paper-2:#1a1d0f;
+  --ink:#e9ecdc;
+  --ink-2:#b4baa4;
+  --ink-3:#7f8672;
+  --line:#2d321f;
+  --lime:#bada55;
+  --lime-ink:#c9e56f;
+  --lime-soft:#26301a;
+  --mono-bg:#0b0d05;
+  --mono-ink:#dfe4cf;
+  --focus:#8ab4ff;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:17px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:inherit;text-decoration-color:var(--lime-ink);text-decoration-thickness:1.5px;text-underline-offset:3px}
+a:hover{color:var(--lime-ink)}
+:focus-visible{outline:2px solid var(--focus);outline-offset:3px;border-radius:2px}
+h1,h2,h3{font-family:"Familjen Grotesk","IBM Plex Sans",system-ui,sans-serif;text-wrap:balance;margin:0;line-height:1.1;letter-spacing:-.01em}
+h2{font-size:clamp(1.7rem,3.4vw,2.4rem);font-weight:700}
+h3{font-size:1.2rem;font-weight:700}
+p{margin:0}
+code,pre,kbd{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+code{font-size:.92em;background:var(--paper-2);padding:.1em .35em;border-radius:3px}
+
+.wrap{max-width:1080px;margin:0 auto;padding-inline:clamp(16px,4vw,40px)}
+.measure{max-width:62ch}
+
+/* top bar */
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-block:20px;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;font-family:"Familjen Grotesk",sans-serif;font-weight:700;font-size:1.25rem;text-decoration:none}
+.brand img{height:40px;width:auto;display:block}
+.nav{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:.95rem}
+.nav a{text-decoration:none;color:var(--ink-2)}
+.nav a:hover{color:var(--lime-ink)}
+.eyebrow{font-size:.78rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--lime-ink)}
+
+/* hero */
+.hero{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:40px;align-items:center;padding-block:clamp(48px,8vw,96px)}
+.hero h1{font-size:clamp(2.6rem,6.5vw,4.6rem);font-weight:700;letter-spacing:-.02em;line-height:1.02}
+.hero h1 em{font-style:normal;color:var(--lime-ink)}
+.hero .lede{font-size:1.15rem;color:var(--ink-2);margin-top:22px;max-width:52ch}
+.hero .lede b{color:var(--ink);font-weight:600}
+.cta{display:flex;flex-wrap:wrap;gap:10px;margin-top:30px}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:6px;border:1.5px solid var(--ink);text-decoration:none;font-weight:600;font-size:.95rem;background:transparent;color:var(--ink)}
+.btn:hover{background:var(--paper-2);color:var(--ink)}
+.btn.primary{background:var(--lime);border-color:var(--lime);color:#171a12}
+.btn.primary:hover{background:#c8e86a;border-color:#c8e86a;color:#171a12}
+
+.codeblock{background:var(--mono-bg);color:var(--mono-ink);border-radius:8px;padding:18px 20px;overflow-x:auto;font-size:.86rem;line-height:1.55;margin:0}
+.codeblock .k{color:var(--mono-key)}
+.codeblock .s{color:var(--mono-str)}
+.codeblock .n{color:var(--mono-num)}
+.codeblock .c{color:#8c9482}
+.code-cap{font-size:.85rem;color:var(--ink-3);margin-top:10px}
+
+/* sections */
+section{padding-block:clamp(48px,7vw,88px);border-top:1px solid var(--line)}
+.sec-head{display:grid;gap:12px;margin-bottom:36px}
+.sec-head p{color:var(--ink-2);max-width:62ch;font-size:1.05rem}
+
+/* blocks */
+.blocks{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.block{padding:22px;border-right:1px solid var(--line);display:grid;gap:8px;align-content:start;background:var(--paper)}
+.block:last-child{border-right:0}
+.block .n{font-family:"IBM Plex Mono",monospace;font-size:.8rem;color:var(--lime-ink)}
+.block h3{font-size:1.15rem}
+.block p{font-size:.95rem;color:var(--ink-2)}
+.rules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px;margin-top:40px}
+.rule h3{margin-bottom:8px;font-size:1.05rem}
+.rule p{font-size:.95rem;color:var(--ink-2)}
+
+/* viewer */
+.viewer-frame{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+.viewer-frame iframe{display:block;width:100%;height:min(80vh,760px);border:0}
+.demo-note{font-size:.85rem;color:var(--ink-3);margin-top:12px}
+
+/* features */
+.features{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:26px 32px}
+.feat{display:grid;gap:6px;padding-top:14px;border-top:2px solid var(--line)}
+.feat h3{font-size:1.05rem}
+.feat p{font-size:.95rem;color:var(--ink-2)}
+.feat code{font-size:.82em}
+
+/* tools */
+.tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.tool{display:grid;gap:12px;padding:24px;border:1px solid var(--line);border-radius:8px;align-content:start}
+.tool .eyebrow{color:var(--ink-3)}
+.tool h3{font-size:1.35rem}
+.tool p{color:var(--ink-2);font-size:.97rem}
+.tool .links{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:.92rem;margin-top:4px}
+.tool .links a{font-weight:500}
+.tool.main{grid-column:1/-1;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px 40px;background:var(--lime-soft);border-color:transparent}
+.tool.main>div{display:grid;gap:12px;align-content:start}
+.tool.main pre{margin:0}
+.keys-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.chip{font-size:.82rem;padding:3px 9px;border-radius:999px;border:1px solid var(--line);color:var(--ink-2)}
+
+/* pipeline */
+.pipe{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:40px;align-items:start}
+.pipe .measure p+p{margin-top:14px}
+.pipe .measure p{color:var(--ink-2)}
+.steps{list-style:none;margin:0;padding:0;display:grid;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.steps li{display:grid;grid-template-columns:auto 1fr;gap:14px;padding:14px 18px;border-bottom:1px solid var(--line);font-size:.95rem}
+.steps li:last-child{border-bottom:0}
+.steps .num{font-family:"IBM Plex Mono",monospace;color:var(--lime-ink);font-size:.85rem;padding-top:3px}
+.steps b{display:block;font-weight:600}
+.steps span{color:var(--ink-2)}
+
+/* footer */
+footer{border-top:1px solid var(--line);padding-block:40px;font-size:.9rem;color:var(--ink-2)}
+.foot{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:30px}
+.foot p+p{margin-top:8px}
+.cite{font-size:.88rem;border-left:3px solid var(--lime);padding-left:14px}
+.foot-links{display:grid;gap:6px;align-content:start}
+.foot-links a{text-decoration:none}
+.foot-links a:hover{text-decoration:underline}
+
+@media (max-width:900px){
+  .hero,.demo,.pipe,.tool.main,.foot{grid-template-columns:1fr}
+  .blocks{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .block:nth-child(2){border-right:0}
+  .block:nth-child(-n+2){border-bottom:1px solid var(--line)}
+  .rules,.features{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .demo-q{border-right:0;border-bottom:1px solid var(--line)}
+}
+@media (max-width:560px){
+  body{font-size:16px}
+  .blocks,.rules,.features,.tools{grid-template-columns:1fr}
+  .block{border-right:0;border-bottom:1px solid var(--line)}
+  .block:last-child{border-bottom:0}
+  .nav{display:none}
+}
+</style>
+</head>
+<body>
+
+<header class="wrap">
+  <div class="top">
+    <a class="brand" href="#top"><img src="logo.svg" alt="Clavis"></a>
+    <nav class="nav" aria-label="Sections">
+      <a href="#format">Format</a>
+      <a href="#try">Try a key</a>
+      <a href="#features">Features</a>
+      <a href="#tools">Tools</a>
+      <a href="#pipeline">Pipeline</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+<div class="wrap">
+  <div class="hero">
+    <div>
+      <p class="eyebrow">An open format for identification keys</p>
+      <h1 style="margin-top:14px">Taxonomic knowledge as <em>data</em>, not prose.</h1>
+      <p class="lede">Clavis is a JSON format for identification keys. It stores <b>which taxa</b> a key separates, <b>which traits</b> can be observed, and <b>how often</b> each taxon shows each trait. Any viewer can turn that into a key; any tool can read it back. Developed at the Norwegian Biodiversity Information Centre and published in PLOS ONE.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/Artsdatabanken/Clavis">Schema on GitHub</a>
+        <a class="btn" href="/editor/">Open the editor</a>
+        <a class="btn" href="https://doi.org/10.1371/journal.pone.0277752">Read the paper</a>
+      </div>
+    </div>
+    <div>
+<pre class="codeblock"><span class="c">// one statement: ravens are always all black</span>
+{
+  <span class="k">"id"</span>: <span class="s">"statement:raven_all_black"</span>,
+  <span class="k">"taxon"</span>: <span class="s">"taxon:corvus_corax"</span>,
+  <span class="k">"character"</span>: <span class="s">"character:plumage"</span>,
+  <span class="k">"value"</span>: <span class="s">"state:all_black"</span>,
+  <span class="k">"frequency"</span>: <span class="n">1</span>
+}</pre>
+      <p class="code-cap">The core unit of a Clavis key. A whole key is a list of these, plus the taxa, characters and states they point to.</p>
+    </div>
+  </div>
+</div>
+
+<section id="format">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">The format</p>
+      <h2>Four building blocks</h2>
+      <p>A Clavis file is plain JSON validated against a published schema. Everything a key knows is expressed with four kinds of object. There are no branches and no fixed order of questions: a user answers whatever they can observe, and the candidate list shrinks.</p>
+    </div>
+
+    <div class="blocks">
+      <div class="block">
+        <span class="n">taxa</span>
+        <h3>Taxa</h3>
+        <p>What the key distinguishes. A flat list or a tree (family → genus → species), each taxon optionally linked to an external taxonomy service by ID.</p>
+      </div>
+      <div class="block">
+        <span class="n">characters</span>
+        <h3>Characters</h3>
+        <p>The questions. Each is about exactly one observable trait, such as "Body length" or "Iris color", and can carry images and a description.</p>
+      </div>
+      <div class="block">
+        <span class="n">states</span>
+        <h3>States</h3>
+        <p>The answers to a character: "pale" / "dark", or numeric bins with units like "under 40 cm". States are exclusive by default; a character can be flagged non-exclusive.</p>
+      </div>
+      <div class="block">
+        <span class="n">statements</span>
+        <h3>Statements</h3>
+        <p>The scores. One per taxon–character–state, with a <b>frequency</b> from 0 to 1: how often that taxon shows that state. 0.05 means rare, not never.</p>
+      </div>
+    </div>
+
+    <div class="rules">
+      <div class="rule">
+        <h3>Polythetic, not dichotomous</h3>
+        <p>A printed key forces one path. In Clavis every character is independent, so a specimen with a missing tail or a torn wing is still identifiable by the traits that are there.</p>
+      </div>
+      <div class="rule">
+        <h3>Inheritance, no overrides</h3>
+        <p>A trait that holds for every member of a group is stated once on the group. A member may not restate a character its parent already answers; the file is invalid if it does. That keeps keys small and keeps contradictions out.</p>
+      </div>
+      <div class="rule">
+        <h3>Sparse by design</h3>
+        <p>Unknown or irrelevant combinations are simply left unscored. A viewer only asks questions that still separate the remaining candidates, so users see a handful of relevant questions instead of a wall of them.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="try">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Try a key</p>
+      <h2>Dragonflies, in the Clavis viewer</h2>
+      <p>This is the open web viewer running a published key: the 55 dragonflies and damselflies of Norway, machine-translated from the Norwegian original. Answer in any order; the viewer only asks what still separates the remaining candidates. The same component runs in the editor and in the national species app.</p>
+    </div>
+    <div class="viewer-frame">
+      <iframe src="demo/index.html" title="Clavis viewer: dragonflies of Norway" loading="lazy"></iframe>
+    </div>
+    <p class="demo-note">Key: <i>Øyenstikkere</i> (Odonata, Norway), English demo translation, CC BY 4.0, from the Clavis keys collection. Images load from Artsdatabanken.</p>
+  </div>
+</section>
+
+<section id="features">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">What the format carries</p>
+      <h2>More than a matrix</h2>
+      <p>Clavis was designed to hold everything a real, publishable key needs, at a level of detail beyond earlier key formats, while staying easy to validate and easy to write by hand.</p>
+    </div>
+    <div class="features">
+      <div class="feat"><h3>Frequencies</h3><p>Every statement carries a value from 0 to 1. Variation, rarity and "usually" are data, not footnotes.</p></div>
+      <div class="feat"><h3>Numerical values</h3><p>Characters can take measurements with any unit and step size, not just categorical states.</p></div>
+      <div class="feat"><h3>Multilingual</h3><p>A key declares its languages as ISO 639-1 codes. Titles, descriptions, URLs and even images can differ per language.</p></div>
+      <div class="feat"><h3>Hierarchical taxa</h3><p>Taxa nest to any depth. Sub-endpoints let a species split further into sexes, life stages or forms.</p></div>
+      <div class="feat"><h3>External services</h3><p>Taxa reference registers such as NorTaxa or GBIF by ID, so names stay current and keys can be combined.</p></div>
+      <div class="feat"><h3>Geography</h3><p>The region a key is valid for, as machine-readable GeoJSON and as a name.</p></div>
+      <div class="feat"><h3>Logical premises</h3><p>A character can depend on earlier answers: only ask about wing venation once the user has said there are wings.</p></div>
+      <div class="feat"><h3>User requirements</h3><p>A statement can declare what the user needs: a hand lens, a microscope, a specimen in hand.</p></div>
+      <div class="feat"><h3>Media</h3><p>Images and other media on the key, on taxa, characters and states, with credits and licences.</p></div>
+      <div class="feat"><h3>Descriptions</h3><p>Short, extended and external descriptions on taxa and characters, for viewers that want to teach as well as identify.</p></div>
+      <div class="feat"><h3>Follow-up keys</h3><p>An endpoint can hand over to another key, so large groups can be built up from smaller, maintained pieces.</p></div>
+      <div class="feat"><h3>Provenance</h3><p>Creators, contributors, publisher, source, licence, dates and a stable identifier are part of the file, not the website around it.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="tools">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Tools</p>
+      <h2>Make it, show it, serve it</h2>
+      <p>Open source, MIT licensed, and built to be used independently of each other. The format is the contract between them.</p>
+    </div>
+
+    <div class="tools">
+      <div class="tool main">
+        <div>
+          <p class="eyebrow">Viewer</p>
+          <h3>Clavis viewer for the web</h3>
+          <p>A React component that takes any valid Clavis JSON and renders a working key: questions, images, candidate list, endpoints. It is what runs inside the editor and inside the Norwegian species-identification app. Drop it into your own site with one import.</p>
+          <div class="links">
+            <a href="https://www.npmjs.com/package/@artsdatabanken/clavis-viewer-web">npm</a>
+            <a href="https://github.com/Artsdatabanken/Clavis-viewer-web">GitHub</a>
+          </div>
+        </div>
+        <div>
+<pre class="codeblock">npm install @artsdatabanken/clavis-viewer-web
+
+<span class="k">import</span> { ClavisViewer } <span class="k">from</span> <span class="s">"@artsdatabanken/clavis-viewer-web"</span>;
+
+&lt;ClavisViewer clavis={key} lang=<span class="s">"en"</span> /&gt;</pre>
+        </div>
+      </div>
+
+      <div class="tool">
+        <p class="eyebrow">Editor</p>
+        <h3>Clavis editor</h3>
+        <p>A browser interface for making keys without touching JSON. Build the taxon tree, define characters and states, score the matrix, attach images, and test the key live in the viewer as you go. Wired to the Norwegian taxonomy register for names and IDs; export gives you the Clavis file.</p>
+        <div class="links">
+          <a href="/editor/">Open the editor</a>
+          <a href="https://github.com/Artsdatabanken/Clavis-editor">GitHub</a>
+        </div>
+      </div>
+
+      <div class="tool">
+        <p class="eyebrow">Schema</p>
+        <h3>Clavis JSON Schema</h3>
+        <p>The format itself, as a versioned JSON Schema. Validate a key with any standard validator before publishing it. The paper describes every element; the schema is the authority.</p>
+        <div class="links">
+          <a href="https://github.com/Artsdatabanken/Clavis">GitHub</a>
+          <a href="https://github.com/Artsdatabanken/Clavis/releases">Releases</a>
+        </div>
+      </div>
+
+      <div class="tool">
+        <p class="eyebrow">Keys</p>
+        <h3>A growing collection</h3>
+        <p>Published Clavis keys, CC BY 4.0, ready to load into any viewer. From dragonflies to cold-water corals.</p>
+        <div class="keys-list">
+          <span class="chip">Odonata</span><span class="chip">Lycaenidae</span><span class="chip">Chrysis</span><span class="chip">Chrysura</span><span class="chip">Diderma</span><span class="chip">Trichiaceae</span><span class="chip">Abies</span><span class="chip">Aconitum</span><span class="chip">Actaea</span><span class="chip">Alyssum</span><span class="chip">Mammal footprints</span><span class="chip">Cold-water corals</span>
+        </div>
+        <div class="links">
+          <a href="https://github.com/Artsdatabanken/clavis-keys">GitHub</a>
+        </div>
+      </div>
+
+      <div class="tool">
+        <p class="eyebrow">Server</p>
+        <h3>Key routing</h3>
+        <p>A small Express service that serves each key by its stable identifier: the JSON at <code>/key/&lt;uuid&gt;</code>, the standalone viewer at <code>/viewer</code>, and the editor at <code>/editor</code>. One Docker image, one URL scheme, the same key in every interface.</p>
+        <div class="links">
+          <a href="https://github.com/Artsdatabanken">GitHub</a>
+        </div>
+      </div>
+
+      <div class="tool" style="grid-column:1/-1">
+        <p class="eyebrow">Pipeline</p>
+        <h3>clavis-pipeline</h3>
+        <p>Skills, agents and scripts that let an AI agent turn books and other sources into a checked Clavis key, with every statement traced to a quote. See <a href="#pipeline">From books to keys</a>.</p>
+        <div class="links">
+          <a href="https://github.com/Artsdatabanken/clavis-pipeline">GitHub</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="pipeline">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Pipeline</p>
+      <h2>From books to keys</h2>
+      <p>An open, agentic pipeline that turns field guides, scanned books, Word documents and existing keys into a checked Clavis key, with every statement traced back to a quote in the source.</p>
+    </div>
+    <div class="pipe">
+      <div class="measure">
+        <p>Most curated identification knowledge still sits in printed books, in prose. The pipeline is a set of skills and scripts that an AI coding agent follows from start to finish: give it a taxon and its sources, and it delivers a key a taxonomist can review and edit. It is tested in Claude Code; other agents that read <code>AGENTS.md</code> should work but are untested.</p>
+        <p>The strict structure of Clavis is what makes this checkable. Agents do the reading; scripts do the counting. A run is not done until measured gates pass: every quote is found word for word in its book, every claim ends up in the key or is skipped with a reason, every species pair the sources can separate is separated, and nothing is lost in the merge. Judgment calls are logged so an expert can dispute them without rerunning anything.</p>
+        <p>Tested with Opus 5.5 running the job and Sonnet 5.5 for the agents. A 24-taxon key from five printed field guides and a matrix key took 73 minutes, about USD 56 at API prices; a 47-taxon key from one Word document took 46 minutes, about USD 19. On a subscription that is a few dollars. Reports from other models and harnesses, including local ones, are welcome.</p>
+<pre class="codeblock" style="margin-top:20px;white-space:pre-wrap;overflow-wrap:anywhere">Clone https://github.com/Artsdatabanken/clavis-pipeline, read its AGENTS.md, and make a Clavis key for &lt;taxon&gt; from &lt;sources&gt;.</pre>
+        <div class="cta" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:20px">
+          <a class="btn primary" href="https://github.com/Artsdatabanken/clavis-pipeline">Pipeline on GitHub</a>
+          <a class="btn" href="https://github.com/Artsdatabanken/clavis-pipeline/tree/main/guides">Model guides</a>
+        </div>
+      </div>
+      <ol class="steps">
+        <li><span class="num">1</span><div><b>Species list</b><span>Taken from the national taxonomy register, with accepted names and synonyms.</span></div></li>
+        <li><span class="num">2</span><div><b>Prepare</b><span>Text from each source, one file per taxon in reading order, figures cut out. Scanned books are OCR'd.</span></div></li>
+        <li><span class="num">3</span><div><b>Harvest</b><span>One agent per source lists every observable claim, taxon by taxon, with a verbatim quote and page. It never sees a key.</span></div></li>
+        <li><span class="num">4</span><div><b>Digitize</b><span>Characters and states are designed from the claims; every statement records the claims it rests on. Measurements stay numerical ranges.</span></div></li>
+        <li><span class="num">5</span><div><b>Audit</b><span>A fresh agent checks the key against the claims and the claims against the book, and fixes what it finds.</span></div></li>
+        <li><span class="num">6</span><div><b>Merge</b><span>Sources are combined by meaning, not wording. A round-trip proves every source statement survives or is logged as removed.</span></div></li>
+        <li><span class="num">7</span><div><b>Make it usable</b><span>Every state must be answerable by one person with one specimen and the guide. Fine shades merge only if no species pair loses its last way apart.</span></div></li>
+        <li><span class="num">8</span><div><b>Gates</b><span>Measured checks and a token and cost report. The run loops until the required gates pass.</span></div></li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <div>
+      <p class="cite">Koch W, Elven H, Finstad AG (2022). Clavis: An open and versatile identification key format. <i>PLoS ONE</i> 17(12): e0277752. <a href="https://doi.org/10.1371/journal.pone.0277752">doi:10.1371/journal.pone.0277752</a></p>
+      <p style="margin-top:18px">Clavis is developed at the <a href="https://www.artsdatabanken.no">Norwegian Biodiversity Information Centre</a> (Artsdatabanken). Tools are MIT licensed; published keys are CC BY 4.0.</p>
+    </div>
+    <div class="foot-links">
+      <a href="https://github.com/Artsdatabanken/Clavis">Schema</a>
+      <a href="/editor/">Editor</a>
+      <a href="https://www.npmjs.com/package/@artsdatabanken/clavis-viewer-web">Viewer on npm</a>
+      <a href="https://github.com/Artsdatabanken/clavis-keys">Keys</a>
+      <a href="https://github.com/Artsdatabanken/clavis-pipeline">Pipeline</a>
+      <a href="https://doi.org/10.5281/zenodo.7209011">Paper data on Zenodo</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
