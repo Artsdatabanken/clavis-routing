@@ -14,7 +14,11 @@ const VALID_ID = /^[A-Za-z0-9][A-Za-z0-9-]*$/;
 
 const isValidId = (id) => typeof id === "string" && VALID_ID.test(id);
 
-const keyPath = (id) => (isValidId(id) ? path.join(KEYS_DIR, `${id}.json`) : null);
+// Ids show up with and without dashes and in either case; files are stored and looked up lowercase without dashes.
+const normalizeId = (id) => id.replace(/-/g, "").toLowerCase();
+
+const keyPath = (id) =>
+  isValidId(id) ? path.join(KEYS_DIR, `${normalizeId(id)}.json`) : null;
 
 // Relative path (from the app root) of the local file for this key, or null.
 const getKeyFile = (id) => {
@@ -40,7 +44,7 @@ const writeAtomic = (dest, content) => {
   fs.renameSync(tmp, dest);
 };
 
-// Clone the whole clavis-keys repo and mirror it into keys/<identifier>.json.
+// Clone the whole clavis-keys repo and mirror it into keys/<identifier without dashes>.json.
 // The filename in the repo is ignored; the "identifier" inside each file is the name.
 // Local keys that are no longer in the repo (and old "<id> - Name.json" files) are removed.
 const doRefresh = async () => {
@@ -70,14 +74,15 @@ const doRefresh = async () => {
         continue;
       }
       const lastModified = Date.parse(data.lastModified) || 0;
-      const prev = chosen.get(id);
+      const key = normalizeId(id);
+      const prev = chosen.get(key);
       if (prev) {
         const keepNew = lastModified > prev.lastModified;
         const loser = keepNew ? prev.file : file;
-        skipped.push({ file: loser, reason: `duplicate identifier ${id} (older copy)` });
+        skipped.push({ file: loser, reason: `duplicate identifier ${key} (older copy)` });
         if (!keepNew) continue;
       }
-      chosen.set(id, { file, content, lastModified });
+      chosen.set(key, { file, content, lastModified });
     }
 
     if (chosen.size === 0) {

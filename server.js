@@ -215,7 +215,7 @@ const sendKey = (res, keyfile) => {
   maintainKey(keyfile).catch((e) => console.error(`[maintenance] Error:`, e.message));
 };
 
-// for /key/:uuid requests, return keys/<uuid>.json (named after the identifier inside the key)
+// for /key/:uuid requests, return keys/<uuid without dashes>.json (named after the identifier inside the key)
 app.get("/key/:uuid", async (req, res) => {
   const uuid = req.params.uuid;
   if (!isValidId(uuid)) return res.status(404).send("Key not found");
@@ -250,7 +250,7 @@ app.post("/key/:uuid/refetch", async (req, res) => {
   }
 });
 
-// Refetch the entire clavis-keys repo and store every key as keys/<identifier>.json
+// Refetch the entire clavis-keys repo and store every key as keys/<identifier without dashes>.json
 app.post("/keys/refetch", async (req, res) => {
   try {
     const result = await refreshKeys();
