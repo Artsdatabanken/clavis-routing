@@ -3,7 +3,8 @@ const fs = require("fs");
 const rateLimit = require("express-rate-limit");
 const cors = require("cors");
 const path = require("path");
-const { maintainKey, startPeriodicMaintenance } = require("./keyMaintenance");
+const { maintainKey, maintainAllKeys, startPeriodicMaintenance } = require("./keyMaintenance");
+const { isValidId, getKeyFile, refreshKeys, refreshOnMiss } = require("./keyStore");
 const keysOverview = require("./keysOverview");
 
 const apiLimiter = rateLimit({
@@ -209,124 +210,54 @@ app.get("/api/taxon-intro/:externalId", async (req, res) => {
   }
 });
 
-const getKey = (uuid) => {
-  var files = fs
-    .readdirSync(path.join(__dirname, "keys"))
-    .filter((fn) => fn.startsWith(uuid));
-  if (files.length > 0) {
-    const path = `keys/${files[0]}`;
-    return path;
-  }
-  return null;
+const sendKey = (res, keyfile) => {
+  res.sendFile(keyfile, { root: __dirname });
+  maintainKey(keyfile).catch((e) => console.error(`[maintenance] Error:`, e.message));
 };
 
-// for /key/:uuid requests, return the corresponding json file
+// for /key/:uuid requests, return keys/<uuid>.json (named after the identifier inside the key)
 app.get("/key/:uuid", async (req, res) => {
   const uuid = req.params.uuid;
+  if (!isValidId(uuid)) return res.status(404).send("Key not found");
 
-  // get the json file starting with the uuid
-  var keyfile = getKey(uuid);
+  let keyfile = getKeyFile(uuid);
+  if (keyfile) return sendKey(res, keyfile);
 
-  if (keyfile) {
-    res.sendFile(keyfile, { root: __dirname });
-    maintainKey(keyfile).catch(e => console.error(`[maintenance] Error:`, e.message));
-    return;
-  } else {
-    // if the key is not found, get all keys from the github repo https://github.com/Artsdatabanken/clavis-keys and store them in the keys folder
-    const { execSync } = require("child_process");
-    execSync(`git clone https://github.com/Artsdatabanken/clavis-keys.git`);
-
-    var files = fs.readdirSync(path.join(__dirname, "clavis-keys"));
-
-    files.forEach((file) => {
-      // if the file is a json file and it is not in the keys folder or the file in the keys folder is not the same size as the file in the clavis-keys folder, move the file to the keys folder
-      if (
-        file.endsWith(".json") &&
-        (!fs.existsSync(`keys/${file}`) ||
-          fs.statSync(`clavis-keys/${file}`).size !=
-            fs.statSync(
-              `keys/${fs.readdirSync(path.join(__dirname, "keys"))[0]}`
-            ).size)
-      ) {
-        fs.rmSync(`keys/${file}`, { recursive: true, force: true });
-        fs.renameSync(`clavis-keys/${file}`, `keys/${file}`);
-      }
-      // otherwise, delete the file
-      else {
-        fs.rmSync(`clavis-keys/${file}`, { recursive: true, force: true });
-      }
-    });
+  // Unknown id: pull the whole clavis-keys repo once and try again
+  try {
+    await refreshOnMiss();
+  } catch (e) {
+    console.error(`[keys] Refresh failed:`, e.message);
   }
 
-  // Try again to get the json file starting with the uuid now that it should be in the keys folder
-  keyfile = getKey(uuid);
-  if (keyfile) {
-    await maintainKey(keyfile);
-    res.sendFile(keyfile, { root: __dirname });
-    return;
-  }
+  keyfile = getKeyFile(uuid);
+  if (keyfile) return sendKey(res, keyfile);
 
-  // if the key is still not found, return 404
   res.status(404).send("Key not found");
 });
 
-// Force refetch a key from the github repo
+// Refetch the entire clavis-keys repo, then report on this one key
 app.post("/key/:uuid/refetch", async (req, res) => {
   const uuid = req.params.uuid;
-  const { execSync } = require("child_process");
-
-  const cleanup = () => {
-    try {
-      execSync(`rm -rf clavis-keys`, { cwd: __dirname });
-    } catch (e) {
-      // Ignore cleanup errors
-    }
-  };
-
   try {
-    // Remove existing clavis-keys directory if it exists
-    cleanup();
-
-    // Clone the repo
-    execSync(`git clone https://github.com/Artsdatabanken/clavis-keys.git`, {
-      cwd: __dirname,
-      timeout: 60000,
-    });
-
-    // Find the file matching the uuid in the cloned repo
-    var clonedFiles = fs
-      .readdirSync(path.join(__dirname, "clavis-keys"))
-      .filter((fn) => fn.startsWith(uuid) && fn.endsWith(".json"));
-
-    if (clonedFiles.length === 0) {
-      cleanup();
-      return res.status(404).send("Key not found in repository");
-    }
-
-    // Remove old key file(s) from keys folder
-    var existingFiles = fs
-      .readdirSync(path.join(__dirname, "keys"))
-      .filter((fn) => fn.startsWith(uuid));
-    existingFiles.forEach((file) => {
-      fs.rmSync(path.join(__dirname, "keys", file), { recursive: true, force: true });
-    });
-
-    // Move the new file to keys folder
-    const newFile = clonedFiles[0];
-    fs.renameSync(
-      path.join(__dirname, "clavis-keys", newFile),
-      path.join(__dirname, "keys", newFile)
-    );
-
-    // Clean up remaining cloned files
-    cleanup();
-
-    await maintainKey(`keys/${newFile}`);
-
-    res.status(200).json({ success: true, message: "Key refetched successfully", file: newFile });
+    await refreshKeys();
+    const keyfile = isValidId(uuid) ? getKeyFile(uuid) : null;
+    if (!keyfile) return res.status(404).send("Key not found in repository");
+    await maintainKey(keyfile);
+    res.status(200).json({ success: true, message: "Key refetched successfully", file: path.basename(keyfile) });
   } catch (error) {
-    cleanup();
     res.status(500).json({ success: false, message: "Failed to refetch key", error: error.message });
+  }
+});
+
+// Refetch the entire clavis-keys repo and store every key as keys/<identifier>.json
+app.post("/keys/refetch", async (req, res) => {
+  try {
+    const result = await refreshKeys();
+    res.status(200).json({ success: true, count: result.keys.length, ...result });
+    maintainAllKeys().catch((e) => console.error(`[maintenance] Error:`, e.message));
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Failed to refetch keys", error: error.message });
   }
 });
 
@@ -361,6 +292,8 @@ app.get("/version", (req, res) => {
 
 const server = app.listen(port, () => {
   console.log(`Server now running on port ${port}`);
+  // Mirror the whole clavis-keys repo at start, so every key is available under its identifier
+  refreshKeys().catch((e) => console.error(`[keys] Startup refresh failed:`, e.message));
   startPeriodicMaintenance();
 });
 

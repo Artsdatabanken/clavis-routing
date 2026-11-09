@@ -1,9 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { execSync } = require("child_process");
-
-const KEYS_DIR = path.join(__dirname, "keys");
-const CLONE_DIR = path.join(__dirname, "clavis-keys");
+const { KEYS_DIR, refreshKeys } = require("./keyStore");
 
 const escapeHtml = (str) =>
   String(str ?? "").replace(/[&<>"']/g, (c) => ({
@@ -88,27 +85,6 @@ const countEndpointTaxa = (taxa) => {
 const pickImageUrl = (data) => {
   const mediaId = data.media || findTaxonMedia(data.taxa);
   return resolveMediaUrl(mediaId, data.mediaElements);
-};
-
-const fetchAllKeys = () => {
-  try { execSync(`rm -rf clavis-keys`, { cwd: __dirname }); } catch (e) {}
-
-  execSync(`git clone https://github.com/Artsdatabanken/clavis-keys.git`, {
-    cwd: __dirname,
-    timeout: 60000,
-  });
-
-  if (!fs.existsSync(KEYS_DIR)) fs.mkdirSync(KEYS_DIR);
-
-  fs.readdirSync(CLONE_DIR)
-    .filter((f) => f.endsWith(".json"))
-    .forEach((file) => {
-      const dest = path.join(KEYS_DIR, file);
-      if (fs.existsSync(dest)) fs.rmSync(dest, { force: true });
-      fs.renameSync(path.join(CLONE_DIR, file), dest);
-    });
-
-  try { execSync(`rm -rf clavis-keys`, { cwd: __dirname }); } catch (e) {}
 };
 
 const readEntry = (file, preferred) => {
@@ -454,7 +430,7 @@ const renderPage = (entries) => {
 </html>`;
 };
 
-const handler = (req, res) => {
+const handler = async (req, res) => {
   const preferred = (req.query.lang ? [req.query.lang] : []).concat(["en", "nb", "nn"]);
 
   let files = [];
@@ -466,7 +442,7 @@ const handler = (req, res) => {
 
   if (files.length === 0) {
     try {
-      fetchAllKeys();
+      await refreshKeys();
       files = fs.readdirSync(KEYS_DIR).filter((f) => f.endsWith(".json"));
     } catch (e) {
       return res.status(500).send(`Failed to fetch keys: ${escapeHtml(e.message)}`);
