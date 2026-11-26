@@ -92,7 +92,16 @@ function createRedeploy({ editorBuild, viewerBuild }) {
     new Promise((resolve, reject) => {
       say(`$ ${cmd} ${args.join(" ")}`);
       // The server's user has no home folder; npm needs one for its cache.
-      const env = { ...process.env, ...GIT_SAFE, CI: "true", HOME: DEPLOY_DIR, npm_config_cache: path.join(DEPLOY_DIR, ".npm-cache") };
+      // The server may run with NODE_ENV=production, which makes npm skip the
+      // build tools (devDependencies); include them, also in nested installs.
+      const env = {
+        ...process.env,
+        ...GIT_SAFE,
+        CI: "true",
+        HOME: DEPLOY_DIR,
+        npm_config_cache: path.join(DEPLOY_DIR, ".npm-cache"),
+        npm_config_include: "dev",
+      };
       const child = spawn(cmd, args, { cwd, env });
       const timer = setTimeout(() => child.kill("SIGKILL"), STEP_TIMEOUT_MS);
       const tail = [];
