@@ -142,3 +142,7 @@ dist
 .yarn/install-state.gz
 .pnp.*
 .claude
+
+# Rebuilds made by POST /redeploy
+/deploy
+/viewer-web.sha

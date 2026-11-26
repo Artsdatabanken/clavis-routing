@@ -37,6 +37,8 @@ WORKDIR /app/viewer
 RUN ls -hal
 
 RUN npm install
+# Remember which viewer-web dev commit this image is built from (for /redeploy)
+RUN git ls-remote https://github.com/Artsdatabanken/clavis-viewer-web.git refs/heads/dev | cut -f1 > /app/viewer-web.sha
 # On dev branch, swap in viewer-web's dev build before bundling.
 # setup-viewer.js no-ops on any other branch, so main is unaffected.
 RUN echo "build_id=$BUILD_ID" && npm run setup-dev --if-present
@@ -77,6 +79,8 @@ RUN mkdir -p log/taxa
 
 RUN mkdir -p keys && chown dockerrunner keys
 RUN mkdir -p clavis-keys && chown dockerrunner clavis-keys
+# Rebuilds made by POST /redeploy go here
+RUN mkdir -p deploy && chown dockerrunner deploy
 
 
 USER dockerrunner

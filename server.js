@@ -6,6 +6,7 @@ const path = require("path");
 const { maintainKey, maintainAllKeys, startPeriodicMaintenance } = require("./keyMaintenance");
 const { isValidId, getKeyFile, refreshKeys, refreshOnMiss } = require("./keyStore");
 const keysOverview = require("./keysOverview");
+const { createRedeploy } = require("./redeploy");
 
 const apiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // Timeframe
@@ -22,6 +23,11 @@ const apiLimiter = rateLimit({
 });
 
 const app = express();
+// Serves /editor and /viewer, and lets POST /redeploy rebuild them from GitHub
+const redeploy = createRedeploy({
+  editorBuild: path.join(__dirname, "editor/build"),
+  viewerBuild: path.join(__dirname, "viewer/build"),
+});
 const port = 5000;
 
 app.use(express.json());
@@ -82,14 +88,16 @@ function devProxy(routePath, target) {
 if (devViewerUrl) {
   devProxy("/viewer", devViewerUrl);
 } else {
-  app.use("/viewer", express.static(path.join(__dirname, "viewer/build")));
+  app.use("/viewer", redeploy.viewerStatic);
 }
 
 if (devEditorUrl) {
   devProxy("/editor", devEditorUrl);
 } else {
-  app.use("/editor", express.static(path.join(__dirname, "editor/build")));
+  app.use("/editor", redeploy.editorStatic);
 }
+
+app.use(redeploy.router);
 
 
 
